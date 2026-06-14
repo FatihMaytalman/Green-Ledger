@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User & Auth Models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  role          Role      @default(STAFF)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  carbons       Carbon[]
+  utilities     Utility[]
+  meetings      Meeting[]
+  reports       Report[]
+  recommendations Recommendation[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+// ESG Models
+model Carbon {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @default(now())
+  source        String   // Energy, Transport, Waste, etc.
+  amount        Float    // kg CO2e
+  unit          String   @default("kg")
+  category      String   // Scope 1, 2, or 3
+  notes         String?
+  documentUrl   String?
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("carbons")
+}
+
+model Utility {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @default(now())
+  type          String   // Electricity, Water, Gas, etc.
+  amount        Float
+  unit          String   // kWh, m³, etc.
+  cost          Float?
+  provider      String?
+  meterNumber   String?
+  notes         String?
+  documentUrl   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("utilities")
+}
+
+model Meeting {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  date          DateTime
+  duration      Int      // minutes
+  attendees     Int
+  location      String?
+  type          String   // Virtual, In-person, Hybrid
+  carbon        Float?   // kg CO2e
+  notes         String?  @db.Text
+  qrCode        String?
+  guestEmail    String?
+  guestName     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("meetings")
+}
+
+model Waste {
+  id            String   @id @default(cuid())
+  date          DateTime @default(now())
+  type          String   // Recyclable, Compost, Landfill, etc.
+  amount        Float
+  unit          String   // kg
+  location      String?
+  notes         String?
+  documentUrl   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@map("waste")
+}
+
+model Water {
+  id            String   @id @default(cuid())
+  date          DateTime @default(now())
+  amount        Float    // m³
+  source        String?  // Mains, Rainwater, Recycled, etc.
+  usage         String?  // Cleaning, Irrigation, Laundry, etc.
+  cost          Float?
+  notes         String?
+  documentUrl   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@map("water")
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  name          String
+  category      String
+  sustainabilityScore Float?
+  certifications String[]  // ISO, B-Corp, etc.
+  contactEmail  String?
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([category])
+  @@map("suppliers")
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String   // Monthly, Quarterly, Annual, ESG
+  period        String   // e.g., "2024-01"
+  totalCarbon   Float
+  totalEnergy   Float
+  totalWaste    Float
+  totalWater    Float
+  insights      String?  @db.Text
+  recommendations String? @db.Text
+  pdfUrl        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([period])
+  @@map("reports")
+}
+
+model Recommendation {
+  id            String   @id @default(cuid())
+  userId        String
+  category      String   // Energy, Water, Waste, Carbon, etc.
+  title         String
+  description   String   @db.Text
+  estimatedSavings Float?  // Annual savings in kg CO2e or cost
+  priority      String   @default("MEDIUM")  // HIGH, MEDIUM, LOW
+  implemented   Boolean  @default(false)
+  implementedDate DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recommendations")
+}
+
+model Certification {
+  id            String   @id @default(cuid())
+  name          String   // Green Tourism Gold, etc.
+  logo          String?
+  description   String?  @db.Text
+  criteria      String?  @db.Text
+  validUntil    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@map("certifications")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String?
+  resource  String
+  resourceId String
+  changes   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
